@@ -1,0 +1,818 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { storage } from '@/lib/storage';
+import { User, Service, Invoice, Ticket, Product, Order } from '@/lib/types';
+import Navbar from '@/components/custom/navbar';
+import AuthForm from '@/components/custom/auth-form';
+import ServerControlPanel from '@/components/custom/server-control-panel';
+import { 
+  Server, 
+  FileText, 
+  MessageSquare, 
+  TrendingUp, 
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Activity,
+  Calendar,
+  ShoppingCart,
+  CreditCard,
+  QrCode,
+  Barcode,
+  Plus,
+  Check,
+  X,
+  Settings,
+  Users,
+  Package,
+  Terminal,
+} from 'lucide-react';
+
+export default function Home() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [services, setServices] = useState<Service[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [mounted, setMounted] = useState(false);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+
+  // Estados para checkout
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
+  const [showCheckout, setShowCheckout] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    storage.init();
+    const user = storage.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+      loadUserData(user.id);
+    }
+    setProducts(storage.getProducts());
+  }, []);
+
+  const loadUserData = (userId: string) => {
+    setServices(storage.getServices(userId));
+    setInvoices(storage.getInvoices(userId));
+    setTickets(storage.getTickets(userId));
+    setOrders(storage.getOrders(userId));
+  };
+
+  const handleLogin = (email: string, password: string) => {
+    const user = storage.login(email, password);
+    if (user) {
+      setCurrentUser(user);
+      loadUserData(user.id);
+    } else {
+      alert('Credenciais inválidas');
+    }
+  };
+
+  const handleRegister = (userData: Omit<User, 'id' | 'createdAt' | 'emailVerified'>) => {
+    const newUser = storage.register(userData);
+    alert('Conta criada com sucesso! Verifique seu email para ativar sua conta.');
+    setCurrentUser(newUser);
+    loadUserData(newUser.id);
+  };
+
+  const handleForgotPassword = (email: string) => {
+    const success = storage.requestPasswordReset(email);
+    if (success) {
+      alert('Link de recuperação enviado para seu email!');
+    } else {
+      alert('Email não encontrado.');
+    }
+  };
+
+  const handleLogout = () => {
+    storage.logout();
+    setCurrentUser(null);
+    setServices([]);
+    setInvoices([]);
+    setTickets([]);
+    setOrders([]);
+    setCurrentPage('dashboard');
+  };
+
+  const handleBuyProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setShowCheckout(true);
+  };
+
+  const handleCompleteCheckout = () => {
+    if (!currentUser || !selectedProduct) return;
+
+    // Criar pedido
+    const order = storage.createOrder({
+      userId: currentUser.id,
+      productId: selectedProduct.id,
+      amount: selectedProduct.price,
+      status: 'pending',
+      paymentMethod,
+      paymentStatus: 'pending',
+    });
+
+    // Criar fatura
+    const invoice = storage.createInvoice({
+      userId: currentUser.id,
+      serviceId: order.id,
+      amount: selectedProduct.price,
+      status: 'unpaid',
+      description: `Pagamento - ${selectedProduct.name}`,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      paymentMethod,
+    });
+
+    // Simular pagamento aprovado
+    setTimeout(() => {
+      storage.updateOrder(order.id, { 
+        status: 'completed', 
+        paymentStatus: 'paid',
+        completedAt: new Date().toISOString(),
+      });
+      
+      storage.updateInvoice(invoice.id, { 
+        status: 'paid',
+        paidDate: new Date().toISOString(),
+      });
+
+      // Criar serviço com configuração de servidor de jogo
+      const gameServerConfig = (selectedProduct.type === 'mta-server' || selectedProduct.type === 'samp-server') ? {
+        serverIp: '192.168.1.100',
+        serverPort: selectedProduct.type === 'mta-server' ? 22003 : 7777,
+        rconPassword: Math.random().toString(36).substring(2, 15),
+        serverPassword: '',
+        serverName: `${currentUser.name}'s ${selectedProduct.type === 'mta-server' ? 'MTA' : 'SAMP'} Server`,
+        gameMode: selectedProduct.type === 'mta-server' ? 'freeroam' : 'grandlarc',
+        maxPlayers: selectedProduct.specs?.slots || 100,
+        currentPlayers: 0,
+        resources: selectedProduct.type === 'mta-server' ? ['admin', 'freeroam', 'mapeditor'] : [],
+        machineSpecs: {
+          cpu: selectedProduct.specs?.cpu || '4 vCPU',
+          ram: selectedProduct.specs?.ram || '8 GB',
+          storage: selectedProduct.specs?.storage || '50 GB SSD',
+          bandwidth: selectedProduct.specs?.bandwidth || '1 Gbps',
+          os: 'Ubuntu 22.04 LTS',
+          location: 'São Paulo, Brasil',
+        },
+        status: 'online' as const,
+        uptime: 0,
+        lastRestart: new Date().toISOString(),
+      } : undefined;
+
+      const service = storage.createService({
+        userId: currentUser.id,
+        name: selectedProduct.name,
+        type: selectedProduct.type,
+        status: 'active',
+        price: selectedProduct.price,
+        billingCycle: selectedProduct.billingCycle,
+        nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        gameServerConfig,
+      });
+
+      loadUserData(currentUser.id);
+      setShowCheckout(false);
+      setSelectedProduct(null);
+      setCurrentPage('services');
+      alert('Pagamento aprovado! Seu serviço foi ativado.');
+    }, 2000);
+
+    alert('Processando pagamento...');
+  };
+
+  const handleManageServer = (service: Service) => {
+    setSelectedService(service);
+  };
+
+  if (!mounted) {
+    return null;
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthForm 
+        onLogin={handleLogin} 
+        onRegister={handleRegister}
+        onForgotPassword={handleForgotPassword}
+      />
+    );
+  }
+
+  // Estatísticas
+  const activeServices = services.filter(s => s.status === 'active').length;
+  const unpaidInvoices = invoices.filter(i => i.status === 'unpaid');
+  const openTickets = tickets.filter(t => t.status === 'open' || t.status === 'customer-reply').length;
+  const totalSpent = invoices
+    .filter(i => i.status === 'paid')
+    .reduce((sum, inv) => sum + inv.amount, 0);
+
+  // Dashboard
+  if (currentPage === 'dashboard') {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar 
+          user={currentUser} 
+          onLogout={handleLogout}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+        />
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Bem-vindo, {currentUser.name}!
+            </h1>
+            <p className="text-slate-400">
+              Gerencie seus serviços de hospedagem e servidores de jogos
+            </p>
+          </div>
+
+          {/* Cards de Estatísticas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <Server className="w-6 h-6 text-white" />
+                </div>
+                <TrendingUp className="w-5 h-5 text-blue-200" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-1">{activeServices}</h3>
+              <p className="text-blue-100 text-sm">Serviços Ativos</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <AlertCircle className="w-5 h-5 text-amber-200" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-1">{unpaidInvoices.length}</h3>
+              <p className="text-amber-100 text-sm">Faturas Pendentes</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <MessageSquare className="w-6 h-6 text-white" />
+                </div>
+                <Activity className="w-5 h-5 text-purple-200" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-1">{openTickets}</h3>
+              <p className="text-purple-100 text-sm">Tickets Abertos</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-white" />
+                </div>
+                <CheckCircle className="w-5 h-5 text-emerald-200" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-1">
+                R$ {totalSpent.toFixed(2)}
+              </h3>
+              <p className="text-emerald-100 text-sm">Total Pago</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Serviços Ativos */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Server className="w-5 h-5 text-blue-500" />
+                  Meus Serviços
+                </h2>
+                <button
+                  onClick={() => setCurrentPage('shop')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4 inline mr-1" />
+                  Novo
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {services.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Server className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <p className="text-slate-400 mb-4">Nenhum serviço ativo</p>
+                    <button
+                      onClick={() => setCurrentPage('shop')}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      Contratar Serviço
+                    </button>
+                  </div>
+                ) : (
+                  services.slice(0, 3).map((service) => (
+                    <div
+                      key={service.id}
+                      className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-white mb-1">{service.name}</h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {service.type === 'mta-server' ? 'Servidor MTA' :
+                             service.type === 'samp-server' ? 'Servidor SAMP' :
+                             service.type === 'shared' ? 'Hospedagem Compartilhada' :
+                             service.type === 'vps' ? 'VPS' :
+                             service.type === 'dedicated' ? 'Dedicado' : 'Cloud'}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            service.status === 'active'
+                              ? 'bg-emerald-600/20 text-emerald-400'
+                              : service.status === 'suspended'
+                              ? 'bg-amber-600/20 text-amber-400'
+                              : 'bg-slate-600/20 text-slate-400'
+                          }`}
+                        >
+                          {service.status === 'active' ? 'Ativo' : 
+                           service.status === 'suspended' ? 'Suspenso' : 'Cancelado'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mb-3">
+                        <span className="text-slate-400">
+                          R$ {service.price.toFixed(2)}/{service.billingCycle === 'monthly' ? 'mês' : 'ano'}
+                        </span>
+                        <span className="text-slate-400 flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {new Date(service.nextDueDate).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                      {(service.type === 'mta-server' || service.type === 'samp-server') && (
+                        <button
+                          onClick={() => handleManageServer(service)}
+                          className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <Terminal className="w-4 h-4" />
+                          Gerenciar Servidor
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Faturas Recentes */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-amber-500" />
+                  Faturas Recentes
+                </h2>
+                <span className="px-3 py-1 bg-amber-600/20 text-amber-400 text-sm font-medium rounded-full">
+                  {unpaidInvoices.length} pendente{unpaidInvoices.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {invoices.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <p className="text-slate-400">Nenhuma fatura</p>
+                  </div>
+                ) : (
+                  invoices.slice(0, 3).map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-amber-500/50 transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-white mb-1">{invoice.description}</h3>
+                          <p className="text-sm text-slate-400">
+                            Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-2 ${
+                            invoice.status === 'paid'
+                              ? 'bg-emerald-600/20 text-emerald-400'
+                              : invoice.status === 'unpaid'
+                              ? 'bg-amber-600/20 text-amber-400'
+                              : 'bg-slate-600/20 text-slate-400'
+                          }`}
+                        >
+                          {invoice.status === 'paid' ? 'Paga' : 
+                           invoice.status === 'unpaid' ? 'Pendente' : 'Cancelada'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-bold text-white">
+                          R$ {invoice.amount.toFixed(2)}
+                        </span>
+                        {invoice.status === 'unpaid' && (
+                          <button className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                            Pagar Agora
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Modal de Gerenciamento de Servidor */}
+        {selectedService && (
+          <ServerControlPanel 
+            service={selectedService}
+            onClose={() => setSelectedService(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Loja de Produtos
+  if (currentPage === 'shop') {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar 
+          user={currentUser} 
+          onLogout={handleLogout}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+        />
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">Loja de Servidores</h1>
+            <p className="text-slate-400">Escolha o plano ideal para seu servidor de jogos</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-blue-500/50 transition-all"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
+                    <Server className="w-6 h-6 text-white" />
+                  </div>
+                  {product.type === 'mta-server' && (
+                    <span className="px-3 py-1 bg-purple-600/20 text-purple-400 text-xs font-medium rounded-full">
+                      MTA:SA
+                    </span>
+                  )}
+                  {product.type === 'samp-server' && (
+                    <span className="px-3 py-1 bg-blue-600/20 text-blue-400 text-xs font-medium rounded-full">
+                      SA-MP
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl font-bold text-white mb-2">{product.name}</h3>
+                <p className="text-slate-400 text-sm mb-4">{product.description}</p>
+
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-3xl font-bold text-white">R$ {product.price.toFixed(2)}</span>
+                    <span className="text-slate-400">/{product.billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
+                  </div>
+                </div>
+
+                <ul className="space-y-2 mb-6">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-center gap-2 text-sm text-slate-300">
+                      <Check className="w-4 h-4 text-emerald-500" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={() => handleBuyProduct(product)}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all"
+                >
+                  Contratar Agora
+                </button>
+              </div>
+            ))}
+          </div>
+        </main>
+
+        {/* Modal de Checkout */}
+        {showCheckout && selectedProduct && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-white">Finalizar Compra</h2>
+                  <button
+                    onClick={() => {
+                      setShowCheckout(false);
+                      setSelectedProduct(null);
+                    }}
+                    className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Resumo do Produto */}
+                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                  <h3 className="font-semibold text-white mb-2">{selectedProduct.name}</h3>
+                  <p className="text-sm text-slate-400 mb-3">{selectedProduct.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Total:</span>
+                    <span className="text-2xl font-bold text-white">
+                      R$ {selectedProduct.price.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Método de Pagamento */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-4">Método de Pagamento</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setPaymentMethod('pix')}
+                      className={`p-4 border rounded-lg transition-all ${
+                        paymentMethod === 'pix'
+                          ? 'border-blue-500 bg-blue-600/20'
+                          : 'border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <QrCode className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === 'pix' ? 'text-blue-400' : 'text-slate-400'
+                      }`} />
+                      <p className={`text-sm font-medium ${
+                        paymentMethod === 'pix' ? 'text-white' : 'text-slate-400'
+                      }`}>
+                        PIX
+                      </p>
+                    </button>
+
+                    <button
+                      onClick={() => setPaymentMethod('credit_card')}
+                      className={`p-4 border rounded-lg transition-all ${
+                        paymentMethod === 'credit_card'
+                          ? 'border-blue-500 bg-blue-600/20'
+                          : 'border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <CreditCard className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === 'credit_card' ? 'text-blue-400' : 'text-slate-400'
+                      }`} />
+                      <p className={`text-sm font-medium ${
+                        paymentMethod === 'credit_card' ? 'text-white' : 'text-slate-400'
+                      }`}>
+                        Cartão
+                      </p>
+                    </button>
+
+                    <button
+                      onClick={() => setPaymentMethod('boleto')}
+                      className={`p-4 border rounded-lg transition-all ${
+                        paymentMethod === 'boleto'
+                          ? 'border-blue-500 bg-blue-600/20'
+                          : 'border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <Barcode className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === 'boleto' ? 'text-blue-400' : 'text-slate-400'
+                      }`} />
+                      <p className={`text-sm font-medium ${
+                        paymentMethod === 'boleto' ? 'text-white' : 'text-slate-400'
+                      }`}>
+                        Boleto
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Botão de Finalizar */}
+                <button
+                  onClick={handleCompleteCheckout}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all"
+                >
+                  Finalizar Pagamento
+                </button>
+
+                <p className="text-xs text-slate-500 text-center">
+                  Ao finalizar, você concorda com nossos termos de serviço
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Página de Serviços
+  if (currentPage === 'services') {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar 
+          user={currentUser} 
+          onLogout={handleLogout}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+        />
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">Meus Serviços</h1>
+            <p className="text-slate-400">Gerencie todos os seus servidores e hospedagens</p>
+          </div>
+
+          {services.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+              <Server className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">Nenhum serviço ativo</h3>
+              <p className="text-slate-400 mb-6">Contrate seu primeiro servidor agora!</p>
+              <button
+                onClick={() => setCurrentPage('shop')}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all"
+              >
+                Ver Planos Disponíveis
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-blue-500/50 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-white mb-1">{service.name}</h3>
+                      <p className="text-sm text-slate-400">
+                        {service.type === 'mta-server' ? 'Servidor MTA:SA' :
+                         service.type === 'samp-server' ? 'Servidor SA-MP' :
+                         service.type === 'shared' ? 'Hospedagem Compartilhada' :
+                         service.type === 'vps' ? 'VPS' :
+                         service.type === 'dedicated' ? 'Servidor Dedicado' : 'Cloud Hosting'}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        service.status === 'active'
+                          ? 'bg-emerald-600/20 text-emerald-400'
+                          : service.status === 'suspended'
+                          ? 'bg-amber-600/20 text-amber-400'
+                          : 'bg-slate-600/20 text-slate-400'
+                      }`}
+                    >
+                      {service.status === 'active' ? 'Ativo' : 
+                       service.status === 'suspended' ? 'Suspenso' : 'Cancelado'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Valor</p>
+                      <p className="text-lg font-bold text-white">
+                        R$ {service.price.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        /{service.billingCycle === 'monthly' ? 'mês' : 'ano'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Próximo Vencimento</p>
+                      <p className="text-sm font-semibold text-white">
+                        {new Date(service.nextDueDate).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {(service.type === 'mta-server' || service.type === 'samp-server') ? (
+                      <button 
+                        onClick={() => handleManageServer(service)}
+                        className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        <Terminal className="w-4 h-4" />
+                        Gerenciar Servidor
+                      </button>
+                    ) : (
+                      <button className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                        Gerenciar
+                      </button>
+                    )}
+                    <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors">
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* Modal de Gerenciamento de Servidor */}
+        {selectedService && (
+          <ServerControlPanel 
+            service={selectedService}
+            onClose={() => setSelectedService(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Painel Admin
+  if (currentPage === 'admin' && currentUser.role === 'admin') {
+    const allUsers = storage.getUsers();
+    const allServices = storage.getServices();
+    const allInvoices = storage.getInvoices();
+
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar 
+          user={currentUser} 
+          onLogout={handleLogout}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+        />
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">Painel Administrativo</h1>
+            <p className="text-slate-400">Gerencie clientes, serviços e configurações</p>
+          </div>
+
+          {/* Estatísticas Admin */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6">
+              <Users className="w-8 h-8 text-white mb-3" />
+              <h3 className="text-3xl font-bold text-white mb-1">{allUsers.length}</h3>
+              <p className="text-blue-100 text-sm">Total de Clientes</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6">
+              <Server className="w-8 h-8 text-white mb-3" />
+              <h3 className="text-3xl font-bold text-white mb-1">{allServices.length}</h3>
+              <p className="text-purple-100 text-sm">Serviços Ativos</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6">
+              <DollarSign className="w-8 h-8 text-white mb-3" />
+              <h3 className="text-3xl font-bold text-white mb-1">
+                R$ {allInvoices.filter(i => i.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+              </h3>
+              <p className="text-emerald-100 text-sm">Receita Total</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6">
+              <Package className="w-8 h-8 text-white mb-3" />
+              <h3 className="text-3xl font-bold text-white mb-1">{products.length}</h3>
+              <p className="text-amber-100 text-sm">Produtos Disponíveis</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4">Configurações de Pagamento</h2>
+            <p className="text-slate-400 mb-4">
+              Configure as integrações com Mercado Pago e Nubank PJ para processar pagamentos.
+            </p>
+            <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all">
+              Configurar Gateways de Pagamento
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Fallback para outras páginas
+  return (
+    <div className="min-h-screen bg-slate-950">
+      <Navbar 
+        user={currentUser} 
+        onLogout={handleLogout}
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+      />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-white mb-2">Página em Desenvolvimento</h2>
+          <p className="text-slate-400">Esta funcionalidade estará disponível em breve.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
