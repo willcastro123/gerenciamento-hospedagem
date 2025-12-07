@@ -1,0 +1,25 @@
+[00:00:01.385] Server  LOG     
+[00:00:01.385] Server  LOG        We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+[00:00:01.386] Server  LOG        The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+[00:00:01.386] Server  LOG        	- include was updated to add '.next/dev/types/**/*.ts'
+[00:00:01.386] Server  LOG     
+[00:00:01.386] Server  LOG        The following mandatory changes were made to your tsconfig.json:
+
+[00:00:01.386] Server  LOG        	- jsx was set to react-jsx (next.js uses the React automatic runtime)
+[00:00:01.386] Server  LOG     
+[00:00:01.515] Server  LOG      ✓ Ready in 1146ms
+[00:00:19.146] Server  LOG      ○ Compiling / ...
+[00:00:26.686] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:26.686] Browser DEBUG   [Lasy Bridge] Starting initialization...
+[00:00:26.686] Browser DEBUG   [Lasy Bridge] Ready signal sent to parent
+[00:00:26.686] Browser DEBUG   [Lasy Bridge] Initialization completed
+[00:00:26.686] Browser LOG     [Lasy Element Selector] Received message: sandbox-log {"__lasy":true,"payload":{"args":["Resource: https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/"],"duration":0,"id":"log_1765139491455_1","level":"warn","message":"Resource issue: https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/ (duration: 0ms)","source":"performance-existing","timestamp":1765139491455,"type":"network-performance","url":"https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/"},"type":"sandbox-log"}
+[00:00:26.686] Browser LOG     [Lasy Element Selector] Received message: sandbox-log {"__lasy":true,"payload":{"args":["Resource: https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/_next/static/chunks/src_app_icon_svg_mjs_dbc42589._.js"],"duration":2677.5,"id":"log_1765139491455_2","level":"info","message":"Resource issue: https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/_next/static/chunks/src_app_icon_svg_mjs_dbc42589._.js (duration: 2677.5ms)","source":"performance-existing","timestamp":1765139491455,"type":"network-performance","url":"https://urban-zebra-wg6wq49w6g9hgvxq-3000.app.github.dev/_next/static/chunks/src_app_icon_svg_mjs_dbc42589._.js"},"type":"sandbox-log"}
+[00:00:26.686] Browser LOG     [Lasy Element Selector] Received message: sandbox-log {"__lasy":true,"payload":{"args":["Lasy console logs conectado"],"id":"log_1765139491455_3","level":"info","message":"Lasy console logs conectado","source":"client-bridge","timestamp":1765139491455,"type":"bridge-initialized"},"type":"sandbox-log"}
+[00:00:26.687] Browser LOG     [Lasy Element Selector] Received message: lasy-bridge-ready {"__lasy":true,"type":"lasy-bridge-ready"}
+[00:00:26.687] Browser LOG     [Lasy URL Tracker] Initialized and tracking URL changes
+[00:00:26.687] Browser LOG     [Lasy Route Discovery] Initialized and scanning for routes
+[00:00:26.687] Browser LOG     [Lasy Bridge] Sending delayed ready signal...
+[00:00:26.687] Browser DEBUG   [Lasy Bridge] Ready signal sent to parent
+[00:00:26.687] Browser LOG     [Lasy Element Selector] Received message: lasy-bridge-ready {"__lasy":true,"type":"lasy-bridge-ready"}
