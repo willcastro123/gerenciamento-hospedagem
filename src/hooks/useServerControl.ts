@@ -3,7 +3,13 @@ import { Service } from '@/lib/types';
 
 // URL do Daemon (Agente) rodando na VPS do cliente
 // Em produção, isso pode ser um Proxy para evitar erros de HTTPS/CORS
-const getDaemonUrl = (ip: string) => `http://${ip}:3000`;
+const getDaemonUrl = (ip: string) => {
+  // Se estivermos rodando local no seu PC, usa localhost
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  // Se estiver na Vercel, usa o túnel do ngrok
+  // COLOQUE O SEU LINK DO NGROK AQUI EMBAIXO:
+  return 'https://a1b2-c3d4.ngrok-free.app'; 
+};
 
 export const useServerControl = (service: Service) => {
   const [status, setStatus] = useState<'online' | 'offline' | 'starting' | 'stopping'>('offline');
