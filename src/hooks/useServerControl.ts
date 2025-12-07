@@ -10,7 +10,7 @@ const getDaemonUrl = (ip: string) => {
   
   // Se estiver na Vercel (nuvem), usa o túnel do Ngrok
   // IMPORTANTE: Troque o link abaixo pelo SEU link do ngrok atual
-  return 'https://superzealously-petrolic-elise.ngrok-free.dev/'; 
+  return 'https://superzealously-petrolic-elise.ngrok-free.dev'; 
 };
 
 export const useServerControl = (service: Service) => {
