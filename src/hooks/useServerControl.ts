@@ -8,7 +8,7 @@ const getDaemonUrl = (ip: string) => {
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   // Se estiver na Vercel, usa o túnel do ngrok
   // COLOQUE O SEU LINK DO NGROK AQUI EMBAIXO:
-  return 'https://a1b2-c3d4.ngrok-free.app'; 
+  return 'https://superzealously-petrolic-elise.ngrok-free.dev'; 
 };
 
 export const useServerControl = (service: Service) => {
