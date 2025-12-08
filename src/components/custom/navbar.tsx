@@ -75,3 +75,36 @@ export default function Navbar({ user, onLogout, currentPage, onNavigate }: Navb
               <p className="text-xs text-slate-400">{user.role === 'admin' ? 'Administrador' : 'Cliente'}</p>
             </div>
             <button
+              onClick={onLogout}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Sair"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Menu Mobile */}
+        <div className="md:hidden flex items-center gap-1 pb-3 overflow-x-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors whitespace-nowrap ${
+                  currentPage === item.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
+}
