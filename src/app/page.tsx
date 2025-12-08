@@ -44,7 +44,6 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-@@ -47,16 +49,34 @@
   const [orders, setOrders] = useState<Order[]>([]);
   const [mounted, setMounted] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -83,7 +82,6 @@ export default function Home() {
   const generateRandomKey = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let key = '';
-@@ -69,7 +89,6 @@
     setGeneratedKey(key);
   };
 
@@ -91,7 +89,6 @@ export default function Home() {
   const handleAdminCreateLicense = async () => {
     if (!generatedKey) return alert('Gere uma chave primeiro.');
 
-@@ -78,53 +97,39 @@
       .insert([
         { 
           key_code: generatedKey,
@@ -152,7 +149,6 @@ export default function Home() {
   useEffect(() => {
     if (currentUser) {
       fetchLicenses();
-@@ -134,142 +139,105 @@
   const fetchLicenses = async () => {
     if (!currentUser) return;
     setLoadingLicenses(true);
@@ -319,7 +315,6 @@ export default function Home() {
       setCurrentUser(user);
       loadUserData(user.id);
     }
-@@ -286,6 +254,10 @@
   const handleLogin = (email: string, password: string) => {
     const user = storage.login(email, password);
     if (user) {
@@ -330,7 +325,6 @@ export default function Home() {
       setCurrentUser(user);
       loadUserData(user.id);
     } else {
-@@ -295,18 +267,13 @@
 
   const handleRegister = (userData: Omit<User, 'id' | 'createdAt' | 'emailVerified'>) => {
     const newUser = storage.register(userData);
@@ -351,7 +345,6 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-@@ -326,8 +293,6 @@
 
   const handleCompleteCheckout = () => {
     if (!currentUser || !selectedProduct) return;
@@ -360,7 +353,6 @@ export default function Home() {
     const order = storage.createOrder({
       userId: currentUser.id,
       productId: selectedProduct.id,
-@@ -336,8 +301,6 @@
       paymentMethod,
       paymentStatus: 'pending',
     });
@@ -369,7 +361,6 @@ export default function Home() {
     const invoice = storage.createInvoice({
       userId: currentUser.id,
       serviceId: order.id,
-@@ -347,45 +310,30 @@
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod,
     });
@@ -423,7 +414,6 @@ export default function Home() {
         userId: currentUser.id,
         name: selectedProduct.name,
         type: selectedProduct.type,
-@@ -400,897 +348,204 @@
       setShowCheckout(false);
       setSelectedProduct(null);
       setCurrentPage('services');
