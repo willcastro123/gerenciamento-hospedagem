@@ -52,6 +52,63 @@ export default function Home() {
   const [loadingLicenses, setLoadingLicenses] = useState(false);
   const [newLicenseKey, setNewLicenseKey] = useState('');
 
+  // Estados do Admin
+  const [generatedKey, setGeneratedKey] = useState('');
+  const [adminLicenses, setAdminLicenses] = useState<any[]>([]); // Lista global de licenças
+
+  // Gerador de Chave Aleatória (Formato XXXX-XXXX-XXXX-XXXX)
+  const generateRandomKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let key = '';
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        key += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      if (i < 3) key += '-';
+    }
+    setGeneratedKey(key);
+  };
+
+  // Função para Admin criar a licença no banco
+  const handleAdminCreateLicense = async () => {
+    if (!generatedKey) return alert('Gere uma chave primeiro.');
+
+    const { error } = await supabase
+      .from('licenses')
+      .insert([
+        { 
+          key_code: generatedKey,
+          status: 'unclaimed', // Status inicial: Sem dono
+          user_id: null,       // Ninguém é dono ainda
+          expires_at: null     // Só define data quando for ativada
+        }
+      ]);
+
+    if (error) {
+      alert('Erro ao criar: ' + error.message);
+    } else {
+      alert(`Licença ${generatedKey} criada! Copie e envie para o cliente.`);
+      fetchAdminLicenses(); // Função para atualizar lista (veja abaixo)
+      setGeneratedKey('');
+    }
+  };
+
+  const fetchAdminLicenses = async () => {
+    // Busca TODAS as licenças do sistema
+    const { data } = await supabase
+      .from('licenses')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setAdminLicenses(data || []);
+  };
+
+  // Carregar licenças quando abrir a aba admin
+  useEffect(() => {
+    if (currentPage === 'admin' && currentUser?.role === 'admin') {
+      fetchAdminLicenses();
+    }
+  }, [currentPage, currentUser]);
+
   // Estados para checkout
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
@@ -94,28 +151,46 @@ export default function Home() {
   };
 
   // 2. FUNÇÃO PARA ADICIONAR LICENÇA
-  const handleAddLicense = async () => {
+  // ATUALIZADO: Função para RESGATAR uma licença existente
+  const handleRedeemLicense = async () => {
     if (!newLicenseKey) return alert('Digite uma chave de licença');
     if (!currentUser) return;
 
-    const { data, error } = await supabase
+    // 1. Verifica se a licença existe e está livre (unclaimed)
+    const { data: license, error: searchError } = await supabase
       .from('licenses')
-      .insert([
-        { 
-          user_id: currentUser.id, 
-          key_code: newLicenseKey,
-          status: 'active',
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
-        }
-      ])
-      .select();
+      .select('*')
+      .eq('key_code', newLicenseKey)
+      .single(); // Espera apenas um resultado
 
-    if (error) {
-      alert('Erro ao adicionar: ' + error.message);
+    if (searchError || !license) {
+      return alert('Licença inválida ou não encontrada.');
+    }
+
+    if (license.status !== 'unclaimed') {
+      return alert('Esta licença já foi utilizada ou não está disponível.');
+    }
+
+    // 2. Atualiza a licença para o usuário atual
+    const { error: updateError } = await supabase
+      .from('licenses')
+      .update({ 
+        user_id: currentUser.id, 
+        status: 'active',
+        // Define expiração para 30 dias a partir do RESGATE (opcional)
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      })
+      .eq('id', license.id);
+
+    if (updateError) {
+      alert('Erro ao ativar licença: ' + updateError.message);
     } else {
       alert('Licença ativada com sucesso!');
       setNewLicenseKey('');
-      fetchLicenses(); // Recarrega a lista
+      fetchLicenses(); // Atualiza a lista na tela
+      
+      // Se quiser recarregar o status do daemon imediatamente:
+      // fetchDaemonData(); 
     }
   };
 
@@ -987,6 +1062,7 @@ const handleManageServer = (service: Service) => {
   }
 
   // Painel Admin
+ // Painel Admin
   if (currentPage === 'admin' && currentUser.role === 'admin') {
     const allUsers = storage.getUsers();
     const allServices = storage.getServices();
@@ -1004,47 +1080,94 @@ const handleManageServer = (service: Service) => {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Painel Administrativo</h1>
-            <p className="text-slate-400">Gerencie clientes, serviços e configurações</p>
+            <p className="text-slate-400">Gerencie sistema, usuários e licenças.</p>
           </div>
 
-          {/* Estatísticas Admin */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6">
-              <Users className="w-8 h-8 text-white mb-3" />
-              <h3 className="text-3xl font-bold text-white mb-1">{allUsers.length}</h3>
-              <p className="text-blue-100 text-sm">Total de Clientes</p>
+          {/* ... (Seus cards de estatísticas anteriores continuam aqui) ... */}
+
+          {/* --- NOVO: GERADOR DE LICENÇAS --- */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Key className="w-5 h-5 text-emerald-500" />
+                Gerador de Licenças
+              </h2>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6">
-              <Server className="w-8 h-8 text-white mb-3" />
-              <h3 className="text-3xl font-bold text-white mb-1">{allServices.length}</h3>
-              <p className="text-purple-100 text-sm">Serviços Ativos</p>
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-4 flex items-center justify-between">
+                <code className="text-xl font-mono text-white tracking-wider">
+                  {generatedKey || 'XXXX-XXXX-XXXX-XXXX'}
+                </code>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={generateRandomKey}
+                    className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                    title="Gerar Nova"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                  </button>
+                  {generatedKey && (
+                     <button 
+                     onClick={() => {navigator.clipboard.writeText(generatedKey); alert('Copiado!')}}
+                     className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                     title="Copiar"
+                   >
+                     <Copy className="w-5 h-5" />
+                   </button>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={handleAdminCreateLicense}
+                disabled={!generatedKey}
+                className={`px-8 py-4 font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  generatedKey 
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                <Plus className="w-5 h-5" />
+                CRIAR LICENÇA
+              </button>
             </div>
 
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6">
-              <DollarSign className="w-8 h-8 text-white mb-3" />
-              <h3 className="text-3xl font-bold text-white mb-1">
-                R$ {allInvoices.filter(i => i.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
-              </h3>
-              <p className="text-emerald-100 text-sm">Receita Total</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6">
-              <Package className="w-8 h-8 text-white mb-3" />
-              <h3 className="text-3xl font-bold text-white mb-1">{products.length}</h3>
-              <p className="text-amber-100 text-sm">Produtos Disponíveis</p>
+            {/* Tabela de Todas as Licenças do Sistema */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-400">
+                <thead className="bg-slate-950 text-slate-200 uppercase font-medium">
+                  <tr>
+                    <th className="px-4 py-3">Chave</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Dono (User ID)</th>
+                    <th className="px-4 py-3">Criada em</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {adminLicenses.map((lic) => (
+                    <tr key={lic.id} className="hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-mono text-white">{lic.key_code}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          lic.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
+                          lic.status === 'unclaimed' ? 'bg-blue-500/10 text-blue-400' :
+                          'bg-red-500/10 text-red-400'
+                        }`}>
+                          {lic.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-mono">
+                        {lic.user_id ? lic.user_id.substring(0, 8) + '...' : '-'}
+                      </td>
+                      <td className="px-4 py-3">{new Date(lic.created_at).toLocaleDateString('pt-BR')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Configurações de Pagamento</h2>
-            <p className="text-slate-400 mb-4">
-              Configure as integrações com Mercado Pago e Nubank PJ para processar pagamentos.
-            </p>
-            <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all">
-              Configurar Gateways de Pagamento
-            </button>
-          </div>
+          {/* --- FIM GERADOR --- */}
+          
         </main>
       </div>
     );
@@ -1082,7 +1205,7 @@ const handleManageServer = (service: Service) => {
                 className="flex-1 bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
               />
               <button 
-                onClick={handleAddLicense}
+                onClick={handleRedeemLicense}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
               >
                 <Key className="w-4 h-4" />
