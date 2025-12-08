@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { storage } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
 import { User, Service, Invoice, Ticket, Product, Order } from '@/lib/types';
 import Navbar from '@/components/custom/navbar';
 import AuthForm from '@/components/custom/auth-form';
@@ -32,6 +33,8 @@ import {
   Wifi,        // Adicionado
   Cpu,         // Adicionado
   Globe,       // Adicionado
+  Key,
+  Trash2
 } from 'lucide-react';
 
 export default function Home() {
@@ -44,12 +47,17 @@ export default function Home() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [mounted, setMounted] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  // NOVO ESTADO PARA LICENÇAS
+  const [licenses, setLicenses] = useState<any[]>([]);
+  const [loadingLicenses, setLoadingLicenses] = useState(false);
+  const [newLicenseKey, setNewLicenseKey] = useState('');
 
   // Estados para checkout
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
   const [showCheckout, setShowCheckout] = useState(false);
 
+  
   // --- INÍCIO: Integração Daemon (Estado e Fetch Real) ---
   const [daemonStatus, setDaemonStatus] = useState({
     connected: false,
@@ -60,6 +68,75 @@ export default function Home() {
     vpsHealth: { cpu: 0, ram: 0 }
   });
 
+  useEffect(() => {
+    if (currentUser) {
+      fetchLicenses();
+    }
+  }, [currentUser]);
+
+  const fetchLicenses = async () => {
+    if (!currentUser) return;
+    setLoadingLicenses(true);
+    
+    // Busca licenças onde user_id é igual ao ID do usuário atual
+    const { data, error } = await supabase
+      .from('licenses')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar licenças:', error);
+    } else {
+      setLicenses(data || []);
+    }
+    setLoadingLicenses(false);
+  };
+
+  // 2. FUNÇÃO PARA ADICIONAR LICENÇA
+  const handleAddLicense = async () => {
+    if (!newLicenseKey) return alert('Digite uma chave de licença');
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+      .from('licenses')
+      .insert([
+        { 
+          user_id: currentUser.id, 
+          key_code: newLicenseKey,
+          status: 'active',
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
+        }
+      ])
+      .select();
+
+    if (error) {
+      alert('Erro ao adicionar: ' + error.message);
+    } else {
+      alert('Licença ativada com sucesso!');
+      setNewLicenseKey('');
+      fetchLicenses(); // Recarrega a lista
+    }
+  };
+
+  // 3. FUNÇÃO PARA REVOGAR (TIRAR) LICENÇA
+  const handleRevokeLicense = async (id: string) => {
+    if (!confirm('Tem certeza que deseja revogar esta licença?')) return;
+
+    const { error } = await supabase
+      .from('licenses')
+      .update({ status: 'revoked' })
+      .eq('id', id);
+
+    if (error) {
+      alert('Erro ao revogar: ' + error.message);
+    } else {
+      fetchLicenses();
+    }
+  };
+
+  // 4. VERIFICAÇÃO SE TEM LICENÇA ATIVA
+  const hasActiveLicense = licenses.some(l => l.status === 'active');
   useEffect(() => {
     if (!mounted || !currentUser) return;
 
@@ -254,7 +331,14 @@ export default function Home() {
     alert('Processando pagamento...');
   };
 
-  const handleManageServer = (service: Service) => {
+const handleManageServer = (service: Service) => {
+    // BLOQUEIO: Se não tiver licença ativa no Supabase, impede o acesso
+    if (!hasActiveLicense) {
+      alert('ACESSO NEGADO: Você precisa de uma licença ativa para gerenciar este servidor. Por favor, vá na aba Licenças e ative uma chave.');
+      setCurrentPage('licenses'); // Redireciona para a página de licenças
+      return;
+    }
+
     setSelectedService(service);
   };
 
@@ -783,7 +867,22 @@ export default function Home() {
           currentPage={currentPage}
           onNavigate={setCurrentPage}
         />
-
+        <button
+  onClick={() => {
+    if (!hasActiveLicense) {
+      alert('Você precisa de uma licença ativa para contratar novos serviços.');
+      setCurrentPage('licenses');
+      return;
+    }
+    setCurrentPage('shop');
+  }}
+  className={`px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors ${
+    !hasActiveLicense ? 'bg-slate-700 cursor-not-allowed opacity-50' : 'bg-blue-600 hover:bg-blue-700'
+  }`}
+>
+  <Plus className="w-4 h-4 inline mr-1" />
+  Novo
+</button>
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Meus Serviços</h1>
@@ -952,6 +1051,108 @@ export default function Home() {
   }
 
   // Fallback para outras páginas
+  // Página de Licenças
+  if (currentPage === 'licenses') {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar 
+          user={currentUser} 
+          onLogout={handleLogout}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+        />
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Gerenciamento de Licenças</h1>
+              <p className="text-slate-400">Vincule suas chaves de acesso para liberar recursos.</p>
+            </div>
+          </div>
+
+          {/* Área de Adicionar Licença */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">Ativar Nova Licença</h2>
+            <div className="flex gap-4">
+              <input
+                type="text"
+                value={newLicenseKey}
+                onChange={(e) => setNewLicenseKey(e.target.value)}
+                placeholder="Cole sua chave de licença aqui (Ex: ABCD-1234-EFGH-5678)"
+                className="flex-1 bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+              />
+              <button 
+                onClick={handleAddLicense}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Key className="w-4 h-4" />
+                Ativar
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de Licenças */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="p-6 border-b border-slate-800">
+              <h2 className="text-lg font-semibold text-white">Suas Licenças</h2>
+            </div>
+            
+            {loadingLicenses ? (
+              <div className="p-8 text-center text-slate-400">Carregando...</div>
+            ) : licenses.length === 0 ? (
+              <div className="p-12 text-center">
+                <Key className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                <p className="text-slate-400">Nenhuma licença vinculada.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-400">
+                  <thead className="bg-slate-950 text-slate-200 uppercase font-medium">
+                    <tr>
+                      <th className="px-6 py-4">Chave</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Data Ativação</th>
+                      <th className="px-6 py-4">Expira em</th>
+                      <th className="px-6 py-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {licenses.map((license) => (
+                      <tr key={license.id} className="hover:bg-slate-800/50">
+                        <td className="px-6 py-4 font-mono text-white">{license.key_code}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            license.status === 'active' 
+                              ? 'bg-emerald-500/10 text-emerald-400' 
+                              : 'bg-red-500/10 text-red-400'
+                          }`}>
+                            {license.status === 'active' ? 'ATIVA' : 'REVOGADA'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">{new Date(license.created_at).toLocaleDateString('pt-BR')}</td>
+                        <td className="px-6 py-4">{license.expires_at ? new Date(license.expires_at).toLocaleDateString('pt-BR') : 'Vitalício'}</td>
+                        <td className="px-6 py-4 text-right">
+                          {license.status === 'active' && (
+                            <button 
+                              onClick={() => handleRevokeLicense(license.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+                              title="Revogar Licença"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-slate-950">
       <Navbar 
