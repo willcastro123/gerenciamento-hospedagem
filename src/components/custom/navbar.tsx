@@ -44,7 +44,7 @@ export default function Navbar({ user, onLogout, currentPage, onNavigate }: Navb
             <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
               <Server className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">HostMaster</span>
+            <span className="text-xl font-bold text-white">Koala Host</span>
           </div>
 
           {/* Menu Desktop */}
