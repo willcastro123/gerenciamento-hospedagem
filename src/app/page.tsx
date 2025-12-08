@@ -38,7 +38,6 @@ import {
   Cpu,
   Globe,
   Key,
-  Trash2
   Trash2,
   Copy,       // Novo
   RefreshCw   // Novo
