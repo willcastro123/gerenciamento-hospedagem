@@ -28,6 +28,10 @@ import {
   Users,
   Package,
   Terminal,
+  ShieldCheck, // Adicionado
+  Wifi,        // Adicionado
+  Cpu,         // Adicionado
+  Globe,       // Adicionado
 } from 'lucide-react';
 
 export default function Home() {
@@ -45,6 +49,69 @@ export default function Home() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
   const [showCheckout, setShowCheckout] = useState(false);
+
+  // --- INÍCIO: Integração Daemon (Estado e Fetch Real) ---
+  const [daemonStatus, setDaemonStatus] = useState({
+    connected: false,
+    licenseValid: false,
+    latency: 0,
+    version: '-',
+    lastSync: '-',
+    vpsHealth: { cpu: 0, ram: 0 }
+  });
+
+  useEffect(() => {
+    if (!mounted || !currentUser) return;
+
+    const fetchDaemonData = async () => {
+      const startTime = Date.now();
+      try {
+        // ⚠️ ATENÇÃO: Substitua pelo IP/Domínio real do seu backend/daemon
+        // Exemplo: 'http://192.168.1.100:3000/status'
+        const response = await fetch('http://SEU_IP_DA_VPS:PORTA/status', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          // Timeout de 4s para não travar a UI se a VPS estiver offline
+          signal: AbortSignal.timeout(4000) 
+        });
+
+        if (!response.ok) throw new Error('Erro na resposta');
+        
+        const data = await response.json();
+        const endTime = Date.now();
+
+        setDaemonStatus({
+          connected: true,
+          // Ajuste as chaves conforme o JSON retornado pelo seu daemon
+          licenseValid: data.license_active === true, 
+          latency: endTime - startTime,
+          version: data.version || 'v1.0.0',
+          lastSync: new Date().toLocaleTimeString(),
+          vpsHealth: {
+            cpu: Number(data.cpu_usage) || 0,
+            ram: Number(data.ram_usage) || 0
+          }
+        });
+      } catch (error) {
+        console.error("Daemon Offline:", error);
+        setDaemonStatus(prev => ({ 
+          ...prev, 
+          connected: false, 
+          latency: 0,
+          lastSync: 'Offline' 
+        }));
+      }
+    };
+
+    // Chamada inicial
+    fetchDaemonData();
+
+    // Atualização a cada 5 segundos
+    const interval = setInterval(fetchDaemonData, 5000);
+
+    return () => clearInterval(interval);
+  }, [mounted, currentUser]);
+  // --- FIM: Integração Daemon ---
 
   useEffect(() => {
     setMounted(true);
@@ -282,6 +349,93 @@ export default function Home() {
               <p className="text-emerald-100 text-sm">Total Pago</p>
             </div>
           </div>
+
+          {/* --- INÍCIO: Seção de Conexão Daemon/Licença --- */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8 relative overflow-hidden group">
+            {/* Efeito de brilho de fundo se estiver conectado */}
+            <div className={`absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32 transition-opacity ${daemonStatus.connected ? 'opacity-100' : 'opacity-0'}`}></div>
+
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+              
+              {/* Informações da Licença */}
+              <div className="flex items-center gap-4">
+                <div className={`p-4 rounded-xl ${daemonStatus.licenseValid ? 'bg-gradient-to-br from-emerald-600 to-teal-600' : 'bg-slate-800'}`}>
+                  <ShieldCheck className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Licença Enterprise
+                    {daemonStatus.licenseValid && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                        Validada
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-slate-400 text-sm font-mono mt-1">
+                    KEY: ****-****-AE91-B7C2
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                    <span className={`w-2 h-2 rounded-full ${daemonStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    {daemonStatus.connected ? `Sincronizado: ${daemonStatus.lastSync}` : 'Offline - Verifique Conexão'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status da Conexão Daemon */}
+              <div className="flex-1 w-full md:w-auto md:border-l md:border-r border-slate-800 md:px-8">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                      <Wifi className="w-3 h-3" /> Latência VPS
+                    </p>
+                    <p className={`text-xl font-bold ${daemonStatus.latency < 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {daemonStatus.latency}ms
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                      <Globe className="w-3 h-3" /> Daemon Ver.
+                    </p>
+                    <p className="text-xl font-bold text-white">
+                      {daemonStatus.version}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status de Recursos da VPS Principal */}
+              <div className="w-full md:w-auto min-w-[200px]">
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400 flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU (Node)</span>
+                      <span className="text-blue-400 font-bold">{daemonStatus.vpsHealth.cpu}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                        style={{ width: `${daemonStatus.vpsHealth.cpu}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">RAM (Node)</span>
+                      <span className="text-purple-400 font-bold">{daemonStatus.vpsHealth.ram}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                        style={{ width: `${daemonStatus.vpsHealth.ram}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          {/* --- FIM: Seção de Conexão Daemon/Licença --- */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Serviços Ativos */}
@@ -635,7 +789,7 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-white mb-2">Meus Serviços</h1>
             <p className="text-slate-400">Gerencie todos os seus servidores e hospedagens</p>
           </div>
-
+          
           {services.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
               <Server className="w-16 h-16 text-slate-600 mx-auto mb-4" />
