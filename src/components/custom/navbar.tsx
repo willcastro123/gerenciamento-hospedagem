@@ -7,10 +7,9 @@ import {
   ShoppingCart, 
   FileText, 
   MessageSquare, 
-  Settings, 
   LayoutDashboard, 
   Shield, 
-  Key // Importei o ícone de Chave
+  Key // <--- O Ícone da chave está aqui
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -21,12 +20,14 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, currentPage, onNavigate }: NavbarProps) {
+  // AQUI É ONDE OS BOTÕES SÃO DEFINIDOS
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'services', label: 'Serviços', icon: Server },
     { id: 'shop', label: 'Loja', icon: ShoppingCart },
-    // Adicionei a aba Licenças aqui:
+    // 👇 ADICIONE ESTA LINHA PARA O BOTÃO APARECER 👇
     { id: 'licenses', label: 'Licenças', icon: Key }, 
+    // 👆 ---------------------------------------- 👆
     { id: 'invoices', label: 'Faturas', icon: FileText },
     { id: 'tickets', label: 'Suporte', icon: MessageSquare },
   ];
@@ -39,15 +40,13 @@ export default function Navbar({ user, onLogout, currentPage, onNavigate }: Navb
     <nav className="bg-slate-900 border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
               <Server className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">Koala Host</span>
+            <span className="text-xl font-bold text-white">HostMaster</span>
           </div>
 
-          {/* Menu Desktop */}
           <div className="hidden md:flex items-center gap-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -68,7 +67,6 @@ export default function Navbar({ user, onLogout, currentPage, onNavigate }: Navb
             })}
           </div>
 
-          {/* User Menu */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">
               <p className="text-sm font-medium text-white">{user.name}</p>
@@ -77,13 +75,12 @@ export default function Navbar({ user, onLogout, currentPage, onNavigate }: Navb
             <button
               onClick={onLogout}
               className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-              title="Sair"
             >
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
-
+        
         {/* Menu Mobile */}
         <div className="md:hidden flex items-center gap-1 pb-3 overflow-x-auto">
           {menuItems.map((item) => {
